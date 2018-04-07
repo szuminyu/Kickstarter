@@ -1,0 +1,628 @@
+---
+title: "assignment3"
+author: "szumin"
+date: "3/31/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Setting up}
+
+library(tm)
+library(SnowballC)
+library(tidyverse)
+library(ggplot2)
+library(tidytext)
+library(stringr)
+library(quanteda)
+library(stringi)
+library(readxl)
+library(plotrix)
+library(wordcloud)
+library(RColorBrewer)
+
+
+
+```
+
+```{r Q1}
+
+kickstarter <- read_csv("/Users/Sumin/Desktop/R/kickstarter_projects.csv")
+
+
+# make some plot (althogh I am reluctant to)
+
+kickstarter$success <- ifelse(kickstarter$state == "successful", 1, 0)
+kickstarter <- kickstarter %>%
+  group_by(top_category) %>%
+  mutate(success_total = sum(success))
+
+k1 <- kickstarter %>%
+  select(top_category,sub_category,success,success_total)
+
+k1 <- k1 %>% 
+  slice(1L)
+
+p1 <- ggplot(k1, aes(x = reorder(top_category, -success_total), y = success_total))+
+  geom_point(aes(color = top_category))+
+  ggtitle("Fundraising Success by Categories")+
+  ylab("Total number of success")+
+  xlab("Categories")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+        axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0))
+p1
+# another way to assess it
+
+kickstarter$achievementratio <- kickstarter$pledged / kickstarter$goal
+
+p2 <-ggplot(kickstarter,aes(x = top_category, y = achievementratio))+
+  geom_point(aes(color = top_category))+
+  scale_y_continuous(limits = c(0,10000))+
+  ggtitle("Fundraising Success by Achievement Ratio")+
+  ylab("Achievement Ratio/nPledged/Goal")+
+  xlab("Categories")+
+  theme_bw()+
+  theme(legend.position = "none",
+        legend.title = element_blank(),
+         axis.text.x = element_text(angle = -30, vjust = 1, hjust = 0))
+p2
+
+# BONUS
+
+
+library(leaflet)
+
+library(zipcode)
+data(zipcode)
+head(zipcode)
+
+zipcode <- zipcode %>%
+  rename(location_state = state)
+
+zipcode <- zipcode %>%
+  select(city,location_state, latitude, longitude)
+zipcode <- distinct(zipcode)
+zipcode <- zipcode %>%
+group_by(location_state) %>%
+slice(c(1, n())) %>%
+ungroup()
+
+q1bonus <- read_csv("/Users/Sumin/Desktop/R/kickstarter_projects.csv")
+
+q1bonus <- q1bonus %>%
+  select(location_town, location_state, state)
+q1bonus$success <- ifelse(q1bonus$state == "successful",1,0)
+q1bonus <- q1bonus %>%
+  group_by(location_town, location_state)
+
+q1bonus <- summarize(q1bonus, n = sum(success))
+
+q1bonus$n <- sort(q1bonus$n, decreasing = TRUE, na.last = TRUE)
+q1bonus <- q1bonus[1:15,]
+
+q1bonusall <- inner_join(x = q1bonus, y = zipcode, by = "location_state")
+
+content <- paste("State:",q1bonusall$location_state,"</br>",
+                 "City:", q1bonusall$city,"</br>",
+                 "Success projects:",q1bonusall$n,"</br>")
+
+leaflet(q1bonusall)%>%
+  addTiles('http://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png') %>%
+  setView(lat=39.833, lng=-98.58, zoom = 4)%>%
+  addCircles(col = "#a50f15", popup = content)
+
+```
+
+```{r Question 2}
+
+k2 <- kickstarter %>%
+  select(blurb,top_category,achievementratio)
+
+k2$achievementratio <- sort(k2$achievementratio, decreasing = TRUE, na.last = TRUE)
+
+#Top 1000
+k2_1 <- k2[1:1000, 1:3]
+
+k2_1 <- as.data.frame(k2_1)
+corp <- Corpus(VectorSource(k2_1))
+corp
+
+#pre-processing
+##remove stopwords
+corpclean <- removeWords(corp[1]$content, stopwords("en"))
+##stem
+corpclean <- stemDocument(corpclean[1], language = "english")
+##remove punctuation 
+corpclean  <- removePunctuation(corpclean)
+##remove numbers 
+corpclean <- removeNumbers(corpclean)
+##remove fully capitalzied words
+corpclean <- str_remove_all(corpclean, "\\b[A-Z]+\\b")
+##remove White space
+corpclean <- stripWhitespace(corpclean)
+##all to lower case
+corpclean <- tolower(corpclean)
+##create a dtm
+corpclean_dtm <- Corpus(VectorSource(corpclean))
+corpclean_dtm <- DocumentTermMatrix(corpclean_dtm)
+
+
+##word cloud
+set.seed(3)
+library(RColorBrewer)
+wordcloud(corpclean, max.words = 100, colors = c("#fc9272", "#fb6a4a", "#ef3b2c", "#cb181d", "#a50f15", "#67000d"))
+text(x=0.5, y=1, "Most Important Words in Top 1000 Projects")
+```
+
+
+```{r q2-2}
+####Q2-2
+
+#Last 1000
+k2_2 <- k2[147218:148217, 1:3]
+
+k2_2 <- as.data.frame(k2_2)
+corp1 <- Corpus(VectorSource(k2_2)) 
+
+
+#pre-processing
+##remove stopwords
+corpclean1 <- removeWords(corp1[1]$content, stopwords("en"))
+##stem
+corpclean1 <- stemDocument(corpclean1[1], language = "english")
+##remove punctuation 
+corpclean1  <- removePunctuation(corpclean1)
+##remove numbers 
+corpclean1 <- removeNumbers(corpclean1)
+##remove fully capitalzied words
+corpclean1 <- str_remove_all(corpclean1, "\\b[A-Z]+\\b")
+##remove White space
+corpclean1 <- stripWhitespace(corpclean1)
+##all to lower case
+corpclean1 <- tolower(corpclean1)
+##dtm
+corpclean_dtm1 <- Corpus(VectorSource(corpclean1))
+corpclean_dtm1 <- DocumentTermMatrix(corpclean_dtm1)
+
+##word cloud
+set.seed(3)
+wordcloud(corpclean1, max.words = 100, colors = c("#d0d1e6", "#a6bddb", "#74a9cf", "#3690c0", "#0570b0", "#034e7b"))
+text(x=0.5, y=1, "Most Important Words in Last 1000 Projects")
+
+##pyramid plot
+
+tidy_top <- tidy(corpclean_dtm)
+top15words <- tidy_top %>%
+  group_by(term) %>%
+  summarise(n = sum(count)) %>%
+  top_n(n = 15, wt = n) %>%
+  rename(Top = n)
+
+tidy_last <- tidy(corpclean_dtm1)
+last15words <- tidy_last %>%
+  group_by(term)%>%
+  summarise(n = sum(count))%>%
+  top_n(n = 15, wt = n) %>%
+  rename(Last = n)
+
+top15 <- full_join(top15words, last15words, by = "term") %>%
+  gather(type, number, -term)
+
+plot <- ggplot(top15, aes(x = term, y = number)) +
+  geom_bar(stat = "identity") +
+  coord_flip()+
+  facet_wrap(~type) +
+  ggtitle("Top 15 words for top and last entries")+
+  xlab("Term")+
+  ylab("Total freq.")
+
+plot
+
+```
+
+```{r Q2-3}
+DATA_DIR <- system.file("extdata/", package = "readtext")
+textq2 <- readtext::readtext(paste0(DATA_DIR, "csv/kickstarter_projects.csv"), text_field = "blurb")
+textq2$ach_ratio = textq2$pledged / textq2$goal
+
+#Top1000
+textq2_top <- textq2 %>%
+  select(doc_id, text, ach_ratio)
+
+textq2_top$ach_ratio <- sort(textq2_top$ach_ratio, decreasing = TRUE, na.last = TRUE)
+textq2_top <- textq2_top[1:1000,1:3]
+#row 144 doesn't have words
+textq2_top <- textq2_top[-c(144),]
+textq2_top_corp <- corpus(textq2_top)
+
+#last 1000
+
+textq2_last <- textq2 %>%
+  select(doc_id, text, ach_ratio)
+textq2_last$ach_ratio <- sort(textq2_last$ach_ratio, decreasing = FALSE, na.last = TRUE)
+textq2_last <- textq2_last[1:1000,1:3]
+# row 144 doesn't have words
+textq2_last <- textq2_last[-c(144),]
+textq2_last_corp <- corpus(textq2_last)
+
+#FRE grades
+#top
+fre_corptop <- textstat_readability(textq2_top_corp, measure = c("Flesch.Kincaid"))
+textq2_top$document <- fre_corptop$document
+top <- full_join(textq2_top, fre_corptop)
+top$cat <- "top 1000 projects"
+
+#last
+fre_corplast <- textstat_readability(textq2_last_corp, measure = c("Flesch.Kincaid"))
+textq2_last$document <- fre_corplast$document
+last <- full_join(textq2_last, fre_corplast)
+last$cat <- "last 1000 projects"
+
+#append
+total <- bind_rows(top,last)
+
+#plot
+
+ggplot(total, aes(x = ach_ratio, y = Flesch.Kincaid))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Flesch Kincaid Scores")+
+  ylab("Flesch Kincaid")+
+  xlab("Achievement Score\nPledged / Goal")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+
+```
+
+```{r Q3-1}
+#Hu Liu Dictionary
+#Thank you TA
+dict_dir <- "/Users/Sumin/Desktop/R/dictionaries"
+positiveHuLiu <- readLines(paste(dict_dir, "positive-words.txt", sep="/"))
+positiveHuLiu <- stri_enc_toutf8(positiveHuLiu, is_unknown_8bit = T)
+
+negativeHuLiu <- readLines(paste(dict_dir, "negative-words.txt", sep = "/"))
+negativeHuLiu <- stri_enc_toutf8(negativeHuLiu, is_unknown_8bit = T)
+
+dicHuLiu <- dictionary(list(positive = positiveHuLiu, negative = negativeHuLiu))
+
+dfm_HuLiu <- dfm(textq2_top_corp, dictionary = dicHuLiu, tolower = T)
+dfm_HuLiu@Dimnames$features
+
+dfm_HuLiu <- data.frame(dfm_HuLiu)
+head(dfm_HuLiu)
+#add true label
+dfm_HuLiu$tone <- (dfm_HuLiu$positive - dfm_HuLiu$negative)/(dfm_HuLiu$positive + dfm_HuLiu$negative)
+dfm_HuLiu$estimate <- "Positive"
+dfm_HuLiu$estimate[dfm_HuLiu$tone < 0] <- "Negative"
+dfm_HuLiu$true_lab <- "Positive"
+dfm_HuLiu$true_lab[dfm_HuLiu$positive ==0] <- "Negative"
+head(dfm_HuLiu)
+
+q3top <- full_join(dfm_HuLiu, top, by = "document")
+
+#last 1000
+
+dfm_HuLiu1 <- dfm(textq2_last_corp, dictionary = dicHuLiu, tolower = T)
+dfm_HuLiu1@Dimnames$features
+dfm_HuLiu1 <- data.frame(dfm_HuLiu1)
+head(dfm_HuLiu1)
+#add true label
+dfm_HuLiu1$tone <- (dfm_HuLiu1$positive - dfm_HuLiu1$negative)/(dfm_HuLiu1$positive + dfm_HuLiu1$negative)
+dfm_HuLiu1$estimate <- "Positive"
+dfm_HuLiu1$estimate[dfm_HuLiu1$tone < 0] <- "Negative"
+dfm_HuLiu1$true_lab <- "Positive"
+dfm_HuLiu1$true_lab[dfm_HuLiu1$positive ==0] <- "Negative"
+head(dfm_HuLiu1)
+
+q3last <- full_join(dfm_HuLiu1, last, by = "document")
+
+#combine this two df
+
+q3 <- bind_rows(q3top, q3last)
+
+#plot 
+ggplot(q3, aes(x = ach_ratio, y = tone))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Tone")+
+  ylab("Tone\nPositive - Negative / Total")+
+  xlab("Achievement Score\nPledged / Goal")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+
+```
+
+```{r Q3-2}
+#select text from the tone scores and collapse them into two larger documents
+
+q3pos <- q3[which(q3$estimate == "Positive"),]
+q3neg <- q3[which(q3$estimate == "Negative"),]
+
+q3pos <- q3[which(q3$tone > 0),]
+q3neg <- q3[which(q3$tone < 0),]
+
+q3postext <- paste(q3pos$text, collapse = " ")
+q3negtext <- paste(q3neg$text, collapse = " ")
+
+#clean them a bit, pre-processing
+##remove stopwords
+q3postext <- removeWords(q3postext, stopwords("en"))
+##stem
+q3posttext <- stemDocument(q3postext, language = "english")
+##remove punctuation 
+q3postext <- removePunctuation(q3postext)
+##remove numbers 
+q3postext <- removeNumbers(q3postext)
+##remove fully capitalzied words
+q3postext <- str_remove_all(q3postext, "\\b[A-Z]+\\b")
+##remove White space
+q3postext <- stripWhitespace(q3postext)
+##all to lower case
+q3postext <- tolower(q3postext)
+#document term matrix
+q3postext.dtm <- Corpus(VectorSource(q3postext))
+q3postext.dtm <- DocumentTermMatrix(q3postext.dtm)
+
+
+#negs
+
+q3negtext <- removeWords(q3negtext, stopwords("en"))
+##stem
+q3negtext <- stemDocument(q3negtext, language = "english")
+##remove punctuation 
+q3negtext <- removePunctuation(q3negtext)
+##remove numbers 
+q3negtext <- removeNumbers(q3negtext)
+##remove fully capitalzied words
+q3negtext <- str_remove_all(q3negtext, "\\b[A-Z]+\\b")
+##remove White space
+q3negtext <- stripWhitespace(q3negtext)
+##all to lower case
+q3negtext <- tolower(q3negtext)
+#document term matrix
+q3negtext.dtm <- Corpus(VectorSource(q3negtext))
+q3negtext.dtm <- DocumentTermMatrix(q3negtext.dtm)
+
+#get sentiments from these texts
+pos <- read.table("/Users/Sumin/Desktop/R/dictionaries/positive-words.txt", as.is=T)
+neg <- read.table("/Users/Sumin/Desktop/R/dictionaries/negative-words.txt", as.is=T)
+
+sentiment <- function(words=c("really great good stuff bad")){
+  require(quanteda)
+  tok <- quanteda::tokens(words)
+  pos.count <- sum(tok[[1]]%in%pos[,1])
+  pos.list <- tok[[1]][which(tok[[1]]%in%pos[,1])]
+  cat("\n positive words:",tok[[1]][which(tok[[1]]%in%pos[,1])],"\n")
+  neg.count <- sum(tok[[1]]%in%neg[,1])
+  neg.list <- tok[[1]][which(tok[[1]]%in%neg[,1])]
+  cat("\n negative words:",tok[[1]][which(tok[[1]]%in%neg[,1])],"\n")
+  out <- (pos.count - neg.count)/(pos.count+neg.count)
+  cat("\n Tone of Document:",out)
+  return(list(pos.list,neg.list))
+}
+
+posttext.sen <- sentiment(q3postext)
+posttext.sen <- as.character(posttext.sen)
+
+negtext.sen <- sentiment(q3negtext)
+negtext.sen <- as.character(negtext.sen)
+
+#word clouds
+
+set.seed(1234)
+wordcloud(posttext.sen, max.words = 100, colors = c('#fcc5c0','#fa9fb5','#f768a1','#dd3497','#ae017e','#7a0177'))
+text(x=0.5, y=0.95, "Positive Words")
+
+set.seed(1234)
+wordcloud(negtext.sen, max.words = 200, colors = c('#fe9929','#ec7014','#cc4c02','#8c2d04'))
+text(x=0.5, y=0.8, "Negative Words")
+
+
+```
+
+```{r 3-3}
+textq3 <- readtext::readtext(paste0(DATA_DIR, "csv/kickstarter_projects.csv"), text_field = "blurb")
+textq3$ach_ratio = textq3$pledged / textq3$goal
+
+#Top1000
+textq3 <- textq3 %>%
+  select(doc_id, text, ach_ratio)
+
+textq3$ach_ratio <- sort(textq3$ach_ratio, decreasing = TRUE, na.last = TRUE)
+
+textq3_top <- textq3[1:1000,1:3]
+
+#row 144 doesn't have words
+textq3_top <- textq3_top[-c(144),]
+textq3_top_corp <- corpus(textq3_top)
+
+#dictionary
+dic_lex <- tidytext::get_sentiments(lexicon = c("nrc"))
+
+##subsets
+anger <- dic_lex %>%
+  filter(sentiment == "anger") %>%
+  select("word")
+anger <- stri_enc_toutf8(anger$word, is_unknown_8bit = T)
+
+anticipation <- dic_lex %>%
+  filter(sentiment == "anticipation")%>%
+  select("word")
+anticipation <- stri_enc_toutf8(anticipation$word, is_unknown_8bit = T)
+
+disgust <- dic_lex %>%
+  filter(sentiment == "disgust")%>%
+  select("word")
+disgust <- stri_enc_toutf8(disgust$word, is_unknown_8bit = T)
+
+fear <- dic_lex %>%
+  filter(sentiment == "fear")%>%
+  select("word")
+fear <- stri_enc_toutf8(fear$word, is_unknown_8bit = T)
+
+joy <- dic_lex %>%
+  filter(sentiment == "joy")%>%
+  select("word")
+joy <- stri_enc_toutf8(joy$word, is_unknown_8bit = T)
+
+sadness <- dic_lex %>%
+  filter(sentiment == "sadness")%>%
+  select("word")
+sadness <- stri_enc_toutf8(sadness$word, is_unknown_8bit = T)
+
+surprise <- dic_lex %>%
+  filter(sentiment == "surprise")%>%
+  select("word")
+surprise <- stri_enc_toutf8(surprise$word, is_unknown_8bit = T)
+
+trust <- dic_lex %>%
+  filter(sentiment == "trust")%>%
+  select("word")
+trust <- stri_enc_toutf8(trust$word, is_unknown_8bit = T)
+
+
+dic_lexicon <- dictionary(list(anger = anger, anticipation = anticipation, disgust = disgust, fear = fear, joy = joy, sadness = sadness, surprise = surprise, trust = trust))
+dfm_lexicon <- dfm(textq3_top_corp, dictionary = dic_lexicon, tolower = T)
+dfm_lexicon@Dimnames$features
+
+dfm_lexicon <- data.frame(dfm_lexicon)
+head(dfm_lexicon)
+
+#let's merge
+
+textq3_top$document <- dfm_lexicon$document
+q3_3top <- full_join(textq3_top, dfm_lexicon)
+q3_3top$cat <- "top 1000 projects"
+
+#last 1000
+
+textq3_last <- textq3[147218:148217,1:3]
+
+#row 144 doesn't have words
+textq3_last <- textq3_last[-c(144),]
+textq3_last_corp <- corpus(textq3_last)
+
+
+dfm_lexicon1 <- dfm(textq3_last_corp, dictionary = dic_lexicon, tolower = T)
+dfm_lexicon1@Dimnames$features
+
+dfm_lexicon1 <- data.frame(dfm_lexicon1)
+head(dfm_lexicon1)
+
+#let's merge
+textq3_last$document <- dfm_lexicon1$document
+q3_3last <- full_join(textq3_last, dfm_lexicon1)
+q3_3last$cat <- "last 1000 projects"
+
+
+#merge them
+
+q3_3 <- bind_rows(q3_3top,q3_3last)
+
+#plot it
+
+angerplot <- ggplot(q3_3, aes(x = ach_ratio, y = anger))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Anger")+
+  ylab("Frequency of Words about Anger")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+anticiplot <- ggplot(q3_3, aes(x = ach_ratio, y = anticipation))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Anticipation")+
+  ylab("Frequency of Words about Anticipation")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+disgustplot <- ggplot(q3_3, aes(x = ach_ratio, y = disgust))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Disgust")+
+  ylab("Frequency of Words about Disgust")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+fearplot <- ggplot(q3_3, aes(x = ach_ratio, y = fear))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Fear")+
+  ylab("Frequency of Words about Fear")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+joyplot <- ggplot(q3_3, aes(x = ach_ratio, y = joy))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Joy")+
+  ylab("Frequency of Words about Joy")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+sadnessplot <- ggplot(q3_3, aes(x = ach_ratio, y = sadness))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Sadness")+
+  ylab("Frequency of Words about Sadness")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+surpriseplot <- ggplot(q3_3, aes(x = ach_ratio, y = surprise))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Surprise")+
+  ylab("Frequency of Words about Surprise")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+trustplot <- ggplot(q3_3, aes(x = ach_ratio, y = trust))+
+  geom_point(aes(color = cat))+
+  ggtitle("Achievement Ratio and Words about Trust")+
+  ylab("Frequency of Words about Trust")+
+  xlab("Achievement Score")+
+  theme_bw()+
+  theme(legend.position = "right",
+        legend.title = element_blank())+
+  scale_color_manual(values = c("#0570b0","#a50f15"))
+
+angerplot
+anticiplot
+disgustplot
+fearplot
+joyplot
+sadnessplot
+surpriseplot
+trustplot
+
+
+
+```
+
+
+```{r Q3-3}
