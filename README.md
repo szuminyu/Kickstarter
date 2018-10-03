@@ -1,6 +1,6 @@
-Kickstarter: text-mining and project success. 
+Kickstarter: I use text-mining to predict the success for 148000 projects on Kickstarter.  
 
-I have done these analysis:
+I have done these analysis and visualization:
 
 a) identify successful projects
 
